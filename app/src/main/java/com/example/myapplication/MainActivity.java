@@ -2,6 +2,7 @@ package com.example.myapplication;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.text.TextUtils;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.TextView;
@@ -24,7 +25,6 @@ public class MainActivity extends AppCompatActivity {
     TextView forgotPass, signUp;
     FirebaseAuth mAuth;
 
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -36,6 +36,7 @@ public class MainActivity extends AppCompatActivity {
             return insets;
         });
 
+        mAuth = FirebaseAuth.getInstance();
         emailUser = findViewById(R.id.email);
         passwordUser = findViewById(R.id.password);
         checkBoxes = findViewById(R.id.checkboxes);
@@ -43,22 +44,33 @@ public class MainActivity extends AppCompatActivity {
         forgotPass = findViewById(R.id.forgotPassword);
         signUp = findViewById(R.id.signUp);
 
+        signUp.setOnClickListener(v -> startActivity(new Intent(this, MainActivity2.class)));
+
         btLogin.setOnClickListener(view -> {
             String email, password;
+
             email = String.valueOf(emailUser.getText());
             password = String.valueOf(passwordUser.getText());
 
-            mAuth.signInWithEmailAndPassword(email, password)
-                    .addOnCompleteListener(task -> {
-                        if (task.isSuccessful()) {
-                            Toast.makeText(getApplicationContext(), "Login berhasil", Toast.LENGTH_SHORT).show();
-                            Intent intent = new Intent(getApplicationContext(), HomeActivity.class);
-                            startActivity(intent);
-                            finish();
-                        } else {
-                            Toast.makeText(MainActivity.this, "Login Gagal", Toast.LENGTH_SHORT).show();
-                        }
-                    });
+            if (TextUtils.isEmpty(email)) {
+                Toast.makeText(this, "Enter email", Toast.LENGTH_LONG).show();
+                emailUser.requestFocus();
+            } else if (TextUtils.isEmpty(password)) {
+                Toast.makeText(this, "Enter Password", Toast.LENGTH_LONG).show();
+                passwordUser.requestFocus();
+            } else {
+                mAuth.signInWithEmailAndPassword(email, password)
+                        .addOnCompleteListener(task -> {
+                            if (task.isSuccessful()) {
+                                Toast.makeText(getApplicationContext(), "Login berhasil", Toast.LENGTH_SHORT).show();
+                                Intent intent = new Intent(getApplicationContext(), HomeActivity.class);
+                                startActivity(intent);
+                                finish();
+                            }
+                        }).addOnFailureListener(task ->
+                                Toast.makeText(MainActivity.this, task.getMessage(), Toast.LENGTH_SHORT).show());
+
+            }
         });
     }
 }

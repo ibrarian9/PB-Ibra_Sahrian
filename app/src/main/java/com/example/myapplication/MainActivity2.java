@@ -2,106 +2,102 @@ package com.example.myapplication;
 
 import android.content.Intent;
 import android.os.Bundle;
-import android.text.TextUtils;
-import android.util.Log;
 import android.widget.Button;
 import android.widget.Toast;
 
-import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
 
 import com.example.myapplication.Models.UserDetails;
 import com.google.android.material.textfield.TextInputEditText;
-import com.google.firebase.Firebase;
 import com.google.firebase.auth.FirebaseAuth;
-import com.google.firebase.auth.FirebaseAuthUserCollisionException;
+import com.google.firebase.auth.FirebaseAuthWeakPasswordException;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
-import com.google.firebase.database.core.Tag;
+
+import java.util.Objects;
 
 public class MainActivity2 extends AppCompatActivity {
 
     Button signUpBtn;
-    TextInputEditText usernameSignUp, passwordSingUp, nimPengguna, emailPengguna;
-    FirebaseAuth mAuth;
-    private static final String TAG = "MainActivity2";
+    TextInputEditText usernameSignUp, passwordSignUp, nimPengguna, emailPengguna;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        EdgeToEdge.enable(this);
         setContentView(R.layout.activity_main2);
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
-            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
-            return insets;
-        });
 
         signUpBtn = findViewById(R.id.signUpBtn);
         usernameSignUp = findViewById(R.id.usernameSignUp);
         emailPengguna = findViewById(R.id.emailPengguna);
-        passwordSingUp = findViewById(R.id.passwordSingUp);
+        passwordSignUp = findViewById(R.id.passwordSingUp); // Fixed typo
         nimPengguna = findViewById(R.id.nimPengguna);
 
         signUpBtn.setOnClickListener(view -> {
-            String username, email, password, NIM;
+            String username = Objects.requireNonNull(usernameSignUp.getText()).toString().trim();
+            String email = Objects.requireNonNull(emailPengguna.getText()).toString().trim();
+            String password = Objects.requireNonNull(passwordSignUp.getText()).toString().trim();
+            String NIM = Objects.requireNonNull(nimPengguna.getText()).toString().trim();
 
-            username = String.valueOf(usernameSignUp.getText());
-            email = String.valueOf(emailPengguna.getText());
-            password = String.valueOf(passwordSingUp.getText());
-            NIM = String.valueOf(nimPengguna.getText());
-
-            if (TextUtils.isEmpty(username)){
-                Toast.makeText(MainActivity2.this, "Enter Username", Toast.LENGTH_LONG).show();
+            if (username.isEmpty()) {
+                usernameSignUp.setError("Enter Username");
                 usernameSignUp.requestFocus();
-            } else if (TextUtils.isEmpty(email)) {
-                Toast.makeText(MainActivity2.this, "Enter email", Toast.LENGTH_LONG).show();
+            } else if (email.isEmpty()) {
+                emailPengguna.setError("Enter Email");
                 emailPengguna.requestFocus();
-            } else if (TextUtils.isEmpty(password)) {
-                Toast.makeText(MainActivity2.this, "Enter Password", Toast.LENGTH_LONG).show();
-                passwordSingUp.requestFocus();
-            } else if (TextUtils.isEmpty(NIM)) {
-                Toast.makeText(MainActivity2.this,"Please Insert your NIM", Toast.LENGTH_LONG).show();
+            } else if (password.isEmpty()) {
+                passwordSignUp.setError("Enter Password");
+                passwordSignUp.requestFocus();
+            } else if (password.length() < 6) {
+                passwordSignUp.setError("Password must be at least 6 characters");
+                passwordSignUp.requestFocus();
+            } else if (NIM.isEmpty()) {
+                nimPengguna.setError("Please Insert your NIM");
                 nimPengguna.requestFocus();
             } else {
-                //methods public void
                 registerUser(username, email, password, NIM);
             }
         });
     }
 
-    private void registerUser(String username, String email,String password, String NIM) {
+    private void registerUser(String username, String email, String password, String NIM) {
         FirebaseAuth auth = FirebaseAuth.getInstance();
 
-        auth.createUserWithEmailAndPassword(email, password).addOnCompleteListener(MainActivity2.this, task -> {
-            if (task.isSuccessful()) {
-                FirebaseUser fUser = auth.getCurrentUser();
-                String uid = fUser.getUid();
+        auth.createUserWithEmailAndPassword(email, password)
+                .addOnCompleteListener(MainActivity2.this, task -> {
+                    if (task.isSuccessful()) {
+                        FirebaseUser fUser = auth.getCurrentUser();
+                        if (fUser != null) {
+                            fUser.sendEmailVerification().addOnCompleteListener(verificationTask -> {
+                                if (verificationTask.isSuccessful()) {
+                                    String uid = fUser.getUid();
+                                    UserDetails userDetails = new UserDetails(uid, username, email, password, NIM);
 
-                UserDetails userDetails = new UserDetails(uid, username, email, password, NIM);
-
-                DatabaseReference reference = FirebaseDatabase.getInstance().getReference("Users");
-                reference.child(fUser.getUid()).setValue(userDetails).addOnCompleteListener(task1 -> {
-                    if (task1.isSuccessful()){
-                        fUser.sendEmailVerification();
-                        Toast.makeText(MainActivity2.this, "Account created", Toast.LENGTH_LONG).show();
-
-                        //Pindah Page
-                        Intent intent = new Intent(MainActivity2.this, HomeActivity.class);
-                        intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_CLEAR_TASK
-                        | Intent.FLAG_ACTIVITY_NEW_TASK);
-                        startActivity(intent);
-                        finish();
+                                    DatabaseReference reference = FirebaseDatabase.getInstance().getReference("Users");
+                                    reference.child(uid).setValue(userDetails)
+                                            .addOnCompleteListener(task1 -> {
+                                                if (task1.isSuccessful()) {
+                                                    Toast.makeText(MainActivity2.this, "Account created", Toast.LENGTH_LONG).show();
+                                                    startActivity(new Intent(MainActivity2.this, HomeActivity.class));
+                                                    finish();
+                                                }
+                                            }).addOnFailureListener(e ->
+                                                    Toast.makeText(MainActivity2.this, e.getMessage(), Toast.LENGTH_SHORT).show());
+                                } else {
+                                    Toast.makeText(MainActivity2.this, "Failed to send verification email", Toast.LENGTH_LONG).show();
+                                }
+                            });
+                        } else {
+                            Toast.makeText(MainActivity2.this, "User creation failed", Toast.LENGTH_SHORT).show();
+                        }
                     } else {
-                        Toast.makeText(MainActivity2.this, "Account registerd failed", Toast.LENGTH_SHORT).show();
-                        Log.d(TAG, "Register: Error");
+                        if (task.getException() instanceof FirebaseAuthWeakPasswordException) {
+                            Toast.makeText(MainActivity2.this, "Password too weak!", Toast.LENGTH_LONG).show();
+                        } else {
+                            Toast.makeText(MainActivity2.this, Objects.requireNonNull(task.getException()).getMessage(), Toast.LENGTH_SHORT).show();
+                        }
                     }
-                });
-            }
-        });
+                }).addOnFailureListener(e ->
+                        Toast.makeText(MainActivity2.this, e.getMessage(), Toast.LENGTH_SHORT).show());
     }
 }
